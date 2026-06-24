@@ -1,0 +1,221 @@
+services:
+
+  nginx:
+    image: nginx:alpine
+    container_name: uber_nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - ./order-api:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - uber_network
+
+  app:
+    build:
+      context: ./order-api
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: uber_app
+    volumes:
+      - ./order-api:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    environment:
+      APP_NAME: "Uber Eats MVP"
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: mysql
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: uber_eats
+      DB_USERNAME: uber
+      DB_PASSWORD: secret
+      KAFKA_BROKERS: kafka:9092
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "require '/var/www/html/vendor/autoload.php'; echo 'OK';"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    networks:
+      - uber_network
+
+  mariadb:
+    image: mariadb:10.11
+    container_name: uber_mariadb
+    environment:
+      MYSQL_DATABASE: uber_eats
+      MYSQL_USER: uber
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root_secret
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - uber_network
+
+  zookeeper:
+    image: bitnami/zookeeper:3.8
+    container_name: uber_zookeeper
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    ports:
+      - "2181:2181"
+    networks:
+      - uber_network
+
+  kafka:
+    image: bitnami/kafka:3.6
+    container_name: uber_kafka
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - uber_network
+
+  kafka-init:
+    image: bitnami/kafka:3.6
+    container_name: uber_kafka_init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic order.created --partitions 1 --replication-factor 1
+        kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic order.ready --partitions 1 --replication-factor 1
+        kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic order.delivered --partitions 1 --replication-factor 1
+        echo "Topics criados com sucesso!"
+        kafka-topics.sh --bootstrap-server kafka:9092 --list
+    networks:
+      - uber_network
+
+  kitchen-consumer:
+    build:
+      context: ./order-api
+      dockerfile: Dockerfile
+    container_name: uber_kitchen
+    command: ["php", "artisan", "consumer:kitchen"]
+    volumes:
+      - ./order-api:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    environment:
+      APP_ENV: local
+      APP_KEY: ""
+      DB_CONNECTION: mysql
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: uber_eats
+      DB_USERNAME: uber
+      DB_PASSWORD: secret
+      KAFKA_BROKERS: kafka:9092
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+    depends_on:
+      app:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - uber_network
+    restart: on-failure
+
+  delivery-consumer:
+    build:
+      context: ./order-api
+      dockerfile: Dockerfile
+    container_name: uber_delivery
+    command: ["php", "artisan", "consumer:delivery"]
+    volumes:
+      - ./order-api:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    environment:
+      APP_ENV: local
+      APP_KEY: ""
+      DB_CONNECTION: mysql
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: uber_eats
+      DB_USERNAME: uber
+      DB_PASSWORD: secret
+      KAFKA_BROKERS: kafka:9092
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+    depends_on:
+      app:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - uber_network
+    restart: on-failure
+
+  notification-consumer:
+    build:
+      context: ./order-api
+      dockerfile: Dockerfile
+    container_name: uber_notification
+    command: ["php", "artisan", "consumer:notification"]
+    volumes:
+      - ./order-api:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    environment:
+      APP_ENV: local
+      APP_KEY: ""
+      DB_CONNECTION: mysql
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: uber_eats
+      DB_USERNAME: uber
+      DB_PASSWORD: secret
+      KAFKA_BROKERS: kafka:9092
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+    depends_on:
+      app:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - uber_network
+    restart: on-failure
+
+networks:
+  uber_network:
+    driver: bridge
+
+volumes:
+  mariadb_data:
+  vendor_data:
