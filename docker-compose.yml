@@ -74,30 +74,32 @@ services:
       - uber_network
 
   zookeeper:
-    image: bitnami/zookeeper:3.8
+    image: confluentinc/cp-zookeeper:7.6.0
     container_name: uber_zookeeper
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
     networks:
       - uber_network
 
   kafka:
-    image: bitnami/kafka:3.6
+    image: confluentinc/cp-kafka:7.6.0
     container_name: uber_kafka
     environment:
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - ALLOW_PLAINTEXT_LISTENER=yes
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
       - "9092:9092"
     depends_on:
       - zookeeper
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -106,7 +108,7 @@ services:
       - uber_network
 
   kafka-init:
-    image: bitnami/kafka:3.6
+    image: confluentinc/cp-kafka:7.6.0
     container_name: uber_kafka_init
     depends_on:
       kafka:
@@ -114,11 +116,11 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic order.created --partitions 1 --replication-factor 1
-        kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic order.ready --partitions 1 --replication-factor 1
-        kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic order.delivered --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.created --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.ready --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic order.delivered --partitions 1 --replication-factor 1
         echo "Topics criados com sucesso!"
-        kafka-topics.sh --bootstrap-server kafka:9092 --list
+        kafka-topics --bootstrap-server kafka:9092 --list
     networks:
       - uber_network
 

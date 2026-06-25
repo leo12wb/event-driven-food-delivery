@@ -259,9 +259,9 @@ make logs-notification # Stream Notification Consumer logs
 | `nginx` | nginx:alpine | `8000` | HTTP reverse proxy |
 | `app` | Custom PHP 8.2 | — | Laravel API (php-fpm) |
 | `mariadb` | mariadb:10.11 | `3306` | Database |
-| `zookeeper` | bitnami/zookeeper:3.8 | `2181` | Kafka coordination |
-| `kafka` | bitnami/kafka:3.6 | `9092` | Message broker |
-| `kafka-init` | bitnami/kafka:3.6 | — | Creates Kafka topics |
+| `zookeeper` | confluentinc/cp-zookeeper:7.6.0 | `2181` | Kafka coordination |
+| `kafka` | confluentinc/cp-kafka:7.6.0 | `9092` | Message broker |
+| `kafka-init` | confluentinc/cp-kafka:7.6.0 | — | Creates Kafka topics |
 | `kitchen-consumer` | Custom PHP 8.2 | — | Processes `order.created` |
 | `delivery-consumer` | Custom PHP 8.2 | — | Processes `order.ready` |
 | `notification-consumer` | Custom PHP 8.2 | — | Processes `order.delivered` |
@@ -276,17 +276,6 @@ make logs-notification # Stream Notification Consumer logs
 | `order.ready` | Kitchen Consumer | Delivery Consumer |
 | `order.delivered` | Delivery Consumer | Notification Consumer |
 
----
-
-## What This Demonstrates
-
-This project covers concepts valued at multiple engineering levels:
-
-- **Junior Backend** — REST API, Laravel, MySQL, Docker
-- **Mid-level Backend** — Kafka, Event-Driven Design, Consumers, Message queues
-- **Senior Backend** — Async processing, Distributed architecture, Decoupled microservices
-
----
 
 ## License
 

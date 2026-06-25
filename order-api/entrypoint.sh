@@ -19,8 +19,8 @@ if [ ! -f "$WORKDIR/.env" ]; then
     echo ".env criado a partir do .env.example"
 fi
 
-# Instala dependências se vendor/ não existir
-if [ ! -d "$WORKDIR/vendor" ]; then
+# Instala dependências se autoload.php não existir (volume vazio não conta)
+if [ ! -f "$WORKDIR/vendor/autoload.php" ]; then
     echo "Instalando dependências Composer..."
     cd "$WORKDIR" && composer install --no-interaction --optimize-autoloader
 fi
